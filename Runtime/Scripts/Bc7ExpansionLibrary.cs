@@ -182,6 +182,10 @@ namespace HDAssets.ImageCompress.Bc7
                 || failedGpuResourceReleasePending || activeExpansionHandleId != InvalidHandleId
                 || activeExpansionWarmupHandleId != InvalidHandleId)
             {
+                if (width <= 0 || height <= 0)
+                {
+                    Debug.LogError("[Bc7ExpansionLibrary] BC7 width and height must each be at least 4 and a multiple of 4.");
+                }
                 SetStatus(eventReceiver == null
                     ? "BC7 expansion event receiver is missing."
                     : "BC7 expansion request is invalid or already pending.");
@@ -639,6 +643,13 @@ namespace HDAssets.ImageCompress.Bc7
             blockCountY = 0;
             _ClearOutputTexture();
 
+            if (sourceWidth < BlockWidth || sourceHeight < BlockHeight
+                || sourceWidth % BlockWidth != 0 || sourceHeight % BlockHeight != 0)
+            {
+                FailExpand("BC7 width and height must each be at least 4 and a multiple of 4.");
+                return;
+            }
+
             // byte数の完全一致を要求し、欠損・余剰byteをGPU decoderへ渡さない
             if (!IsInputValid())
             {
@@ -650,7 +661,7 @@ namespace HDAssets.ImageCompress.Bc7
             // linear引数はbyte値を変換するものではなく、sampling時の色空間解釈を指定する
             // ARGB32 RenderTextureへBlitしないため、表示に渡した後もBC7のVRAM削減効果が残る
             // raw payload自体には寸法情報がないため、sourceWidth/sourceHeightは圧縮時の元寸法と完全一致させる
-            // 端数寸法は4x4 blockへ切り上げられるが、BC7対応と最大Texture寸法は実行端末に依存する
+            // UnityのBC7 Textureは幅・高さが4の倍数である必要がある
             Texture2D texture = new Texture2D(sourceWidth, sourceHeight, TextureFormat.BC7, false, !encodedSrgb);
             // encoderが出力したnative 16byte/blockを並べ替えず、そのままUnityへuploadする
             texture.LoadRawTextureData(sourceBytes);
@@ -767,6 +778,7 @@ namespace HDAssets.ImageCompress.Bc7
         // 展開処理を失敗状態にしてGPUリソース解放と通知を行う
         private void FailExpand(string message)
         {
+            Debug.LogError("[Bc7ExpansionLibrary] " + message);
             expansionPending = false;
             expansionStartedAt = 0f;
             expandComplete = false;

@@ -371,6 +371,12 @@ namespace HDAssets.ImageCompress.Bc7
         private void PrepareInputCopy()
         {
             if (ownedInputTexture != null) return;
+            if (borrowedCopySource != null && (borrowedCopySource.width < BlockWidth || borrowedCopySource.height < BlockHeight
+                || borrowedCopySource.width % BlockWidth != 0 || borrowedCopySource.height % BlockHeight != 0))
+            {
+                FailCompression("BC7 width and height must each be at least 4 and a multiple of 4.");
+                return;
+            }
             if (borrowedCopySource == null || borrowedCopySource.width > 8192 || borrowedCopySource.height > 8192
                 || (long)borrowedCopySource.width * borrowedCopySource.height > 16777216L)
             {
@@ -592,9 +598,10 @@ namespace HDAssets.ImageCompress.Bc7
 
             sourceWidth = sourceTexture.width;
             sourceHeight = sourceTexture.height;
-            if (sourceWidth <= 0 || sourceHeight <= 0)
+            if (sourceWidth < BlockWidth || sourceHeight < BlockHeight
+                || sourceWidth % BlockWidth != 0 || sourceHeight % BlockHeight != 0)
             {
-                FailActiveOperation("sourceTexture size is invalid.");
+                FailActiveOperation("BC7 width and height must each be at least 4 and a multiple of 4.");
                 return;
             }
 
@@ -1078,6 +1085,12 @@ namespace HDAssets.ImageCompress.Bc7
         // 任意のプレビュー/検証用。Unityへnative BC7 byte[]をそのまま渡すため、ここでbyte順を変更してはいけない
         public void _CreateCompressedTextureFromOutput()
         {
+            if (sourceWidth < BlockWidth || sourceHeight < BlockHeight
+                || sourceWidth % BlockWidth != 0 || sourceHeight % BlockHeight != 0)
+            {
+                FailCompression("BC7 width and height must each be at least 4 and a multiple of 4.");
+                return;
+            }
             byte[] outputBytes = compressedBytes;
 
             if (outputBytes == null || sourceWidth <= 0 || sourceHeight <= 0)
@@ -1095,7 +1108,7 @@ namespace HDAssets.ImageCompress.Bc7
 
             _ClearCompressedTexture();
             // raw BC7 payloadには元画像寸法が含まれないため、ここで使う寸法は圧縮時と完全一致が必要
-            // 4x4未満や端数寸法はblock数を切り上げられるが、TextureFormat対応と最大寸法は実行端末に依存する
+            // UnityのBC7 Textureは幅・高さが4の倍数である必要がある
             // BC7 resource自身のGraphicsFormatで格納値の色領域を指定する
             // sRGB値を格納したbyte列はlinear:false、linear値はlinear:trueで生成する
             // これはsampling時の解釈指定であり、ARGB32への色空間復元Blitは行わない
@@ -1274,6 +1287,7 @@ namespace HDAssets.ImageCompress.Bc7
         // 圧縮処理を失敗状態にしてGPUリソース解放と通知を行う
         private void FailCompression(string message)
         {
+            Debug.LogError("[Bc7CompressionLibrary] " + message);
             inputCopyPending = false;
             compressionPending = false;
             compressionComplete = false;
